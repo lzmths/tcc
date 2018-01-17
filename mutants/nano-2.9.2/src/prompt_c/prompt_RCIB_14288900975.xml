@@ -1,0 +1,760 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" revision="0.9.5" language="C" filename="home/lmac/Downloads/nano-2.9.2/mut/src/prompt_c/prompt_RCIB_14.c"><comment type="block">/**************************************************************************
+ *   prompt.c  --  This file is part of GNU nano.                         *
+ *                                                                        *
+ *   Copyright (C) 1999-2011, 2013-2017 Free Software Foundation, Inc.    *
+ *   Copyright (C) 2016 Benno Schulenberg                                 *
+ *                                                                        *
+ *   GNU nano is free software: you can redistribute it and/or modify     *
+ *   it under the terms of the GNU General Public License as published    *
+ *   by the Free Software Foundation, either version 3 of the License,    *
+ *   or (at your option) any later version.                               *
+ *                                                                        *
+ *   GNU nano is distributed in the hope that it will be useful,          *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty          *
+ *   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.              *
+ *   See the GNU General Public License for more details.                 *
+ *                                                                        *
+ *   You should have received a copy of the GNU General Public License    *
+ *   along with this program.  If not, see http://www.gnu.org/licenses/.  *
+ *                                                                        *
+ **************************************************************************/</comment>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>"proto.h"</cpp:file></cpp:include>
+
+<cpp:include>#<cpp:directive>include</cpp:directive> <cpp:file>&lt;string.h&gt;</cpp:file></cpp:include>
+
+<decl_stmt><decl><specifier>static</specifier> <type><name>char</name> <modifier>*</modifier></type><name>prompt</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+		<comment type="block">/* The prompt string used for statusbar questions. */</comment>
+<decl_stmt><decl><specifier>static</specifier> <type><name>size_t</name></type> <name>statusbar_x</name> <init>= <expr><name>HIGHEST_POSITIVE</name></expr></init></decl>;</decl_stmt>
+		<comment type="block">/* The cursor position in answer. */</comment>
+
+<comment type="block">/* Read in a keystroke, interpret it if it is a shortcut or toggle, and
+ * return it.  Set ran_func to TRUE if we ran a function associated with
+ * a shortcut key, and set finished to TRUE if we're done after running
+ * or trying to run a function associated with a shortcut key. */</comment>
+<function><type><name>int</name></type> <name>do_statusbar_input</name><parameter_list>(<parameter><decl><type><name>bool</name> <modifier>*</modifier></type><name>ran_func</name></decl></parameter>, <parameter><decl><type><name>bool</name> <modifier>*</modifier></type><name>finished</name></decl></parameter>)</parameter_list>
+<block>{
+	<decl_stmt><decl><type><name>int</name></type> <name>input</name></decl>;</decl_stmt>
+		<comment type="block">/* The character we read in. */</comment>
+	<decl_stmt><decl><specifier>static</specifier> <type><name>int</name> <modifier>*</modifier></type><name>kbinput</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+		<comment type="block">/* The input buffer. */</comment>
+	<decl_stmt><decl><specifier>static</specifier> <type><name>size_t</name></type> <name>kbinput_len</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+		<comment type="block">/* The length of the input buffer. */</comment>
+	<decl_stmt><decl><type><specifier>const</specifier> <name>sc</name> <modifier>*</modifier></type><name>s</name></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>bool</name></type> <name>have_shortcut</name> <init>= <expr><name>FALSE</name></expr></init></decl>;</decl_stmt>
+	<decl_stmt><decl><type><specifier>const</specifier> <name>subnfunc</name> <modifier>*</modifier></type><name>f</name></decl>;</decl_stmt>
+
+	<expr_stmt><expr><operator>*</operator><name>ran_func</name> <operator>=</operator> <name>FALSE</name></expr>;</expr_stmt>
+	<expr_stmt><expr><operator>*</operator><name>finished</name> <operator>=</operator> <name>FALSE</name></expr>;</expr_stmt>
+
+	<comment type="block">/* Read in a character. */</comment>
+	<expr_stmt><expr><name>input</name> <operator>=</operator> <call><name>get_kbinput</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><name>VISIBLE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:ifndef>#<cpp:directive>ifndef</cpp:directive> <name>NANO_TINY</name></cpp:ifndef>
+	<if>if <condition>(<expr><name>input</name> <operator>==</operator> <name>KEY_WINCH</name></expr>)</condition><then>
+		<block type="pseudo"><return>return <expr><name>KEY_WINCH</name></expr>;</return></block></then></if>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<cpp:ifdef>#<cpp:directive>ifdef</cpp:directive> <name>ENABLE_MOUSE</name></cpp:ifdef>
+	<comment type="block">/* If we got a mouse click and it was on a shortcut, read in the
+	 * shortcut character. */</comment>
+	<if>if <condition>(<expr><name>input</name> <operator>==</operator> <name>KEY_MOUSE</name></expr>)</condition><then> <block>{
+		<if>if <condition>(<expr><call><name>do_statusbar_mouse</name><argument_list>()</argument_list></call> <operator>==</operator> <literal type="number">1</literal></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><name>input</name> <operator>=</operator> <call><name>get_kbinput</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><name>BLIND</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block></then>
+		<else>else
+			<block type="pseudo"><return>return <expr><name>ERR</name></expr>;</return></block></else></if>
+	}</block></then></if>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+	<comment type="block">/* Check for a shortcut in the current list. */</comment>
+	<expr_stmt><expr><name>s</name> <operator>=</operator> <call><name>get_shortcut</name><argument_list>(<argument><expr><operator>&amp;</operator><name>input</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+	<comment type="block">/* If we got a shortcut from the current list, or a "universal"
+	 * statusbar prompt shortcut, set have_shortcut to TRUE. */</comment>
+	<expr_stmt><expr><name>have_shortcut</name> <operator>=</operator> <operator>(</operator><name>s</name> <operator>!=</operator> <name>NULL</name><operator>)</operator></expr>;</expr_stmt>
+
+	<comment type="block">/* If we got a non-high-bit control key, a meta key sequence, or a
+	 * function key, and it's not a shortcut or toggle, throw it out. */</comment>
+	<if>if <condition>(<expr><operator>!</operator><name>have_shortcut</name></expr>)</condition><then> <block>{
+		<if>if <condition>(<expr><call><name>is_ascii_cntrl_char</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call> <operator>||</operator> <name>meta_key</name> <operator>||</operator> <operator>!</operator><call><name>is_byte</name><argument_list>(<argument><expr><name>input</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+			<expr_stmt><expr><call><name>beep</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+			<expr_stmt><expr><name>input</name> <operator>=</operator> <name>ERR</name></expr>;</expr_stmt>
+		}</block></then></if>
+	}</block></then></if>
+
+	<comment type="block">/* If the keystroke isn't a shortcut nor a toggle, it's a normal text
+	 * character: add the it to the input buffer, when allowed. */</comment>
+	<if>if <condition>(<expr><name>input</name> <operator>!=</operator> <name>ERR</name> <operator>&amp;&amp;</operator> <operator>!</operator><name>have_shortcut</name></expr>)</condition><then> <block>{
+		<comment type="block">/* Only accept input when not in restricted mode, or when not at
+		 * the "Write File" prompt, or when there is no filename yet. */</comment>
+		<if>if <condition>(<expr><operator>!</operator><call><name>ISSET</name><argument_list>(<argument><expr><name>RESTRICTED</name></expr></argument>)</argument_list></call> <operator>||</operator> <name>currmenu</name> <operator>!=</operator> <name>MWRITEFILE</name> <operator>||</operator>
+						<name><name>openfile</name><operator>-&gt;</operator><name>filename</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition><then> <block>{
+			<expr_stmt><expr><name>kbinput_len</name><operator>++</operator></expr>;</expr_stmt>
+			<expr_stmt><expr><name>kbinput</name> <operator>=</operator> <operator>(</operator><name>int</name> <operator>*</operator><operator>)</operator><call><name>nrealloc</name><argument_list>(<argument><expr><name>kbinput</name></expr></argument>, <argument><expr><name>kbinput_len</name> <operator>*</operator> <sizeof>sizeof<argument_list>(<argument><expr><name>int</name></expr></argument>)</argument_list></sizeof></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			<expr_stmt><expr><name><name>kbinput</name><index>[<expr><name>kbinput_len</name> <operator>-</operator> <literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name>input</name></expr>;</expr_stmt>
+		}</block></then></if>
+	}</block></then></if>
+
+	<comment type="block">/* If we got a shortcut, or if there aren't any other keystrokes waiting
+	 * after the one we read in, we need to insert all the characters in the
+	 * input buffer (if not empty) into the answer. */</comment>
+	<if>if <condition>(<expr><operator>(</operator><name>have_shortcut</name> <operator>||</operator> <call><name>get_key_buffer_len</name><argument_list>()</argument_list></call> <operator>==</operator> <literal type="number">0</literal><operator>)</operator> <operator>&amp;&amp;</operator> <name>kbinput</name> <operator>!=</operator> <name>NULL</name></expr>)</condition><then> <block>{
+		<comment type="block">/* Inject all characters in the input buffer at once, filtering out
+		 * control characters. */</comment>
+		<expr_stmt><expr><call><name>do_statusbar_output</name><argument_list>(<argument><expr><name>kbinput</name></expr></argument>, <argument><expr><name>kbinput_len</name></expr></argument>, <argument><expr><name>TRUE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+		<comment type="block">/* Empty the input buffer. */</comment>
+		<expr_stmt><expr><name>kbinput_len</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+		<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>kbinput</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		<expr_stmt><expr><name>kbinput</name> <operator>=</operator> <name>NULL</name></expr>;</expr_stmt>
+	}</block></then></if>
+
+	<if>if <condition>(<expr><name>have_shortcut</name></expr>)</condition><then> <block>{
+		<if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_tab</name> <operator>||</operator> <name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_enter</name></expr>)</condition><then>
+			<block type="pseudo"><empty_stmt>;</empty_stmt></block></then>
+		<elseif>else <if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_left</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><call><name>do_statusbar_left</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if></elseif>
+		<elseif>else <if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_right</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><call><name>do_statusbar_right</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if></elseif>
+<cpp:ifndef>#<cpp:directive>ifndef</cpp:directive> <name>NANO_TINY</name></cpp:ifndef>
+		<elseif>else <if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_prev_word_void</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><call><name>do_statusbar_prev_word</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if></elseif>
+		<elseif>else <if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_next_word_void</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><call><name>do_statusbar_next_word</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if></elseif>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+		<elseif>else <if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_home</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><call><name>do_statusbar_home</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if></elseif>
+		<elseif>else <if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_end</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><call><name>do_statusbar_end</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if></elseif>
+		<comment type="block">/* When in restricted mode at the "Write File" prompt and the
+		 * filename isn't blank, disallow any input and deletion. */</comment>
+		<elseif>else <if>if <condition>(<expr><call><name>ISSET</name><argument_list>(<argument><expr><name>RESTRICTED</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <name>currmenu</name> <operator>==</operator> <name>MWRITEFILE</name> <operator>&amp;&amp;</operator>
+								<name><name>openfile</name><operator>-&gt;</operator><name>filename</name><index>[<expr><literal type="number">0</literal></expr>]</index></name> <operator>!=</operator> <literal type="char">'\0'</literal> <operator>&amp;&amp;</operator>
+								<operator>(</operator><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_verbatim_input</name> <operator>||</operator>
+								<name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_cut_text_void</name> <operator>||</operator>
+								<name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_delete</name> <operator>||</operator>
+								<name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_backspace</name><operator>)</operator></expr>)</condition><then>
+			<block type="pseudo"><empty_stmt>;</empty_stmt></block></then></if></elseif>
+		<elseif>else <if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_verbatim_input</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><call><name>do_statusbar_verbatim_input</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if></elseif>
+		<elseif>else <if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_cut_text_void</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><call><name>do_statusbar_cut_text</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if></elseif>
+		<elseif>else <if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_delete</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><call><name>do_statusbar_delete</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if></elseif>
+		<elseif>else <if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_backspace</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><call><name>do_statusbar_backspace</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if></elseif>
+		<elseif>else <if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>==</operator> <name>do_uncut_text</name></expr>)</condition><then> <block>{
+			<if>if <condition>(<expr><name>cutbuffer</name> <operator>!=</operator> <name>NULL</name></expr>)</condition><then>
+				<block type="pseudo"><expr_stmt><expr><call><name>do_statusbar_uncut_text</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if>
+		}</block></then></if></elseif> <else>else <block>{
+			<comment type="block">/* Handle any other shortcut in the current menu, setting
+			 * ran_func to TRUE if we try to run their associated functions,
+			 * and setting finished to TRUE to indicatethat we're done after
+			 * running or trying to run their associated functions. */</comment>
+			<expr_stmt><expr><name>f</name> <operator>=</operator> <call><name>sctofunc</name><argument_list>(<argument><expr><name>s</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			<if>if <condition>(<expr><name><name>s</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>!=</operator> <name>NULL</name></expr>)</condition><then> <block>{
+				<expr_stmt><expr><operator>*</operator><name>ran_func</name> <operator>=</operator> <name>TRUE</name></expr>;</expr_stmt>
+				<if>if <condition>(<expr><name>f</name> <operator>&amp;&amp;</operator> <operator>(</operator><operator>!</operator><call><name>ISSET</name><argument_list>(<argument><expr><name>VIEW_MODE</name></expr></argument>)</argument_list></call> <operator>||</operator> <name><name>f</name><operator>-&gt;</operator><name>viewok</name></name><operator>)</operator> <operator>&amp;&amp;</operator>
+								<name><name>f</name><operator>-&gt;</operator><name>scfunc</name></name> <operator>!=</operator> <name>do_gotolinecolumn_void</name></expr>)</condition><then>
+					<block type="pseudo"><expr_stmt><expr><call><name><name>f</name><operator>-&gt;</operator><name>scfunc</name></name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if>
+			}</block></then></if>
+			<expr_stmt><expr><operator>*</operator><name>finished</name> <operator>=</operator> <name>TRUE</name></expr>;</expr_stmt>
+		}</block></else></if>
+	}</block></then></if>
+
+	<return>return <expr><name>input</name></expr>;</return>
+}</block></function>
+
+<cpp:ifdef>#<cpp:directive>ifdef</cpp:directive> <name>ENABLE_MOUSE</name></cpp:ifdef>
+<comment type="block">/* Handle a mouse click on the statusbar prompt or the shortcut list. */</comment>
+<function><type><name>int</name></type> <name>do_statusbar_mouse</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<decl_stmt><decl><type><name>int</name></type> <name>mouse_x</name></decl>, <decl><type ref="prev"/><name>mouse_y</name></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>int</name></type> <name>retval</name> <init>= <expr><call><name>get_mouseinput</name><argument_list>(<argument><expr><operator>&amp;</operator><name>mouse_x</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>mouse_y</name></expr></argument>, <argument><expr><name>TRUE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+	<comment type="block">/* We can click on the statusbar window text to move the cursor. */</comment>
+	<if>if <condition>(<expr><name>retval</name> <operator>==</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator> <call><name>wmouse_trafo</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>mouse_y</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>mouse_x</name></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+		<decl_stmt><decl><type><name>size_t</name></type> <name>start_col</name></decl>;</decl_stmt>
+
+		<expr_stmt><expr><name>start_col</name> <operator>=</operator> <call><name>strlenpt</name><argument_list>(<argument><expr><name>prompt</name></expr></argument>)</argument_list></call> <operator>+</operator> <literal type="number">2</literal></expr>;</expr_stmt>
+
+		<comment type="block">/* Move to where the click occurred. */</comment>
+		<if>if <condition>(<expr><name>mouse_x</name> <operator>&gt;=</operator> <name>start_col</name> <operator>&amp;&amp;</operator> <name>mouse_y</name> <operator>==</operator> <literal type="number">0</literal></expr>)</condition><then> <block>{
+			<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>actual_x</name><argument_list>(<argument><expr><name>answer</name></expr></argument>,
+						<argument><expr><call><name>get_statusbar_page_start</name><argument_list>(<argument><expr><name>start_col</name></expr></argument>, <argument><expr><name>start_col</name> <operator>+</operator>
+						<call><name>statusbar_xplustabs</name><argument_list>()</argument_list></call></expr></argument>)</argument_list></call> <operator>+</operator> <name>mouse_x</name> <operator>-</operator> <name>start_col</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			<expr_stmt><expr><call><name>update_the_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+		}</block></then></if>
+	}</block></then></if>
+
+	<return>return <expr><name>retval</name></expr>;</return>
+}</block></function>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+<comment type="block">/* The user typed input_len multibyte characters.  Add them to the answer,
+ * filtering out ASCII control characters if filtering is TRUE. */</comment>
+<function><type><name>void</name></type> <name>do_statusbar_output</name><parameter_list>(<parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>the_input</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>input_len</name></decl></parameter>,
+		<parameter><decl><type><name>bool</name></type> <name>filtering</name></decl></parameter>)</parameter_list>
+<block>{
+	<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>output</name> <init>= <expr><call><name>charalloc</name><argument_list>(<argument><expr><name>input_len</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>char</name></type> <name><name>onechar</name><index>[<expr><name>MAXCHARLEN</name></expr>]</index></name></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>int</name></type> <name>i</name></decl>, <decl><type ref="prev"/><name>char_len</name></decl>;</decl_stmt>
+
+	<comment type="block">/* Copy the typed stuff so it can be treated. */</comment>
+	<for>for <control>(<init><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</init> <condition><expr><name>i</name> <operator>&lt;</operator> <name>input_len</name></expr>;</condition> <incr><expr><name>i</name><operator>++</operator></expr></incr>)</control>
+		<block type="pseudo"><expr_stmt><expr><name><name>output</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <operator>(</operator><name>char</name><operator>)</operator><name><name>the_input</name><index>[<expr><name>i</name></expr>]</index></name></expr>;</expr_stmt></block></for>
+	<expr_stmt><expr><name><name>output</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <literal type="char">'\0'</literal></expr>;</expr_stmt>
+
+	<expr_stmt><expr><name>i</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+
+	<while>while <condition>(<expr><name>i</name> <operator>&lt;</operator> <name>input_len</name></expr>)</condition> <block>{
+		<comment type="block">/* Encode any NUL byte as 0x0A. */</comment>
+		<if>if <condition>(<expr><name><name>output</name><index>[<expr><name>i</name></expr>]</index></name> <operator>==</operator> <literal type="char">'\0'</literal></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><name><name>output</name><index>[<expr><name>i</name></expr>]</index></name> <operator>=</operator> <literal type="char">'\n'</literal></expr>;</expr_stmt></block></then></if>
+
+		<comment type="block">/* Interpret the next multibyte character. */</comment>
+		<expr_stmt><expr><name>char_len</name> <operator>=</operator> <call><name>parse_mbchar</name><argument_list>(<argument><expr><name>output</name> <operator>+</operator> <name>i</name></expr></argument>, <argument><expr><name>onechar</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+		<expr_stmt><expr><name>i</name> <operator>+=</operator> <name>char_len</name></expr>;</expr_stmt>
+
+		<comment type="block">/* When filtering, skip any ASCII control character. */</comment>
+		<if>if <condition>(<expr><name>filtering</name> <operator>&amp;&amp;</operator> <call><name>is_ascii_cntrl_char</name><argument_list>(<argument><expr><operator>*</operator><operator>(</operator><name>output</name> <operator>+</operator> <name>i</name> <operator>-</operator> <name>char_len</name><operator>)</operator></expr></argument>)</argument_list></call></expr>)</condition><then>
+			<block type="pseudo"><continue>continue;</continue></block></then></if>
+
+		<comment type="block">/* Insert the typed character into the existing answer string. */</comment>
+		<expr_stmt><expr><name>answer</name> <operator>=</operator> <call><name>charealloc</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><call><name>strlen</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call> <operator>+</operator> <name>char_len</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		<expr_stmt><expr><call><name>charmove</name><argument_list>(<argument><expr><name>answer</name> <operator>+</operator> <name>statusbar_x</name> <operator>+</operator> <name>char_len</name></expr></argument>, <argument><expr><name>answer</name> <operator>+</operator> <name>statusbar_x</name></expr></argument>,
+								<argument><expr><call><name>strlen</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call> <operator>-</operator> <name>statusbar_x</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		<expr_stmt><expr><call><name>strncpy</name><argument_list>(<argument><expr><name>answer</name> <operator>+</operator> <name>statusbar_x</name></expr></argument>, <argument><expr><name>onechar</name></expr></argument>, <argument><expr><name>char_len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+		<expr_stmt><expr><name>statusbar_x</name> <operator>+=</operator> <name>char_len</name></expr>;</expr_stmt>
+	}</block></while>
+
+	<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>output</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+	<expr_stmt><expr><call><name>update_the_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+}</block></function>
+
+<comment type="block">/* Move to the beginning of the answer. */</comment>
+<function><type><name>void</name></type> <name>do_statusbar_home</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>update_the_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+}</block></function>
+
+<comment type="block">/* Move to the end of the answer. */</comment>
+<function><type><name>void</name></type> <name>do_statusbar_end</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>strlen</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>update_the_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+}</block></function>
+
+<comment type="block">/* Move left one character. */</comment>
+<function><type><name>void</name></type> <name>do_statusbar_left</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<if>if <condition>(<expr><name>statusbar_x</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition><then> <block>{
+		<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>move_mbleft</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>statusbar_x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		<expr_stmt><expr><call><name>update_the_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+	}</block></then></if>
+}</block></function>
+
+<comment type="block">/* Move right one character. */</comment>
+<function><type><name>void</name></type> <name>do_statusbar_right</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<if>if <condition>(<expr><name><name>answer</name><index>[<expr><name>statusbar_x</name></expr>]</index></name> <operator>!=</operator> <literal type="char">'\0'</literal></expr>)</condition><then> <block>{
+		<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>move_mbright</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>statusbar_x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		<expr_stmt><expr><call><name>update_the_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+	}</block></then></if>
+}</block></function>
+
+<comment type="block">/* Backspace over one character. */</comment>
+<function><type><name>void</name></type> <name>do_statusbar_backspace</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<if>if <condition>(<expr><name>statusbar_x</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition><then> <block>{
+		<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>move_mbleft</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>statusbar_x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		<expr_stmt><expr><call><name>do_statusbar_delete</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+	}</block></then></if>
+}</block></function>
+
+<comment type="block">/* Delete one character. */</comment>
+<function><type><name>void</name></type> <name>do_statusbar_delete</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<if>if <condition>(<expr><name><name>answer</name><index>[<expr><name>statusbar_x</name></expr>]</index></name> <operator>!=</operator> <literal type="char">'\0'</literal></expr>)</condition><then> <block>{
+		<decl_stmt><decl><type><name>int</name></type> <name>char_len</name> <init>= <expr><call><name>parse_mbchar</name><argument_list>(<argument><expr><name>answer</name> <operator>+</operator> <name>statusbar_x</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>, <argument><expr><name>NULL</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+		<expr_stmt><expr><call><name>charmove</name><argument_list>(<argument><expr><name>answer</name> <operator>+</operator> <name>statusbar_x</name></expr></argument>, <argument><expr><name>answer</name> <operator>+</operator> <name>statusbar_x</name> <operator>+</operator> <name>char_len</name></expr></argument>,
+						<argument><expr><call><name>strlen</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call> <operator>-</operator> <name>statusbar_x</name> <operator>-</operator> <name>char_len</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+		<expr_stmt><expr><call><name>update_the_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+	}</block></then></if>
+}</block></function>
+
+<comment type="block">/* Zap some or all text from the answer. */</comment>
+<function><type><name>void</name></type> <name>do_statusbar_cut_text</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<if>if <condition>(<expr><operator>!</operator><call><name>ISSET</name><argument_list>(<argument><expr><name>CUT_FROM_CURSOR</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+		<block type="pseudo"><expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block></then></if>
+
+	<expr_stmt><expr><name><name>answer</name><index>[<expr><name>statusbar_x</name></expr>]</index></name> <operator>=</operator> <literal type="char">'\0'</literal></expr>;</expr_stmt>
+
+	<expr_stmt><expr><call><name>update_the_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+}</block></function>
+
+<cpp:ifndef>#<cpp:directive>ifndef</cpp:directive> <name>NANO_TINY</name></cpp:ifndef>
+<comment type="block">/* Move to the next word in the answer. */</comment>
+<function><type><name>void</name></type> <name>do_statusbar_next_word</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<decl_stmt><decl><type><name>bool</name></type> <name>seen_space</name> <init>= <expr><operator>!</operator><call><name>is_word_mbchar</name><argument_list>(<argument><expr><name>answer</name> <operator>+</operator> <name>statusbar_x</name></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+	<comment type="block">/* Move forward until we reach the start of a word. */</comment>
+	<while>while <condition>(<expr><name><name>answer</name><index>[<expr><name>statusbar_x</name></expr>]</index></name> <operator>!=</operator> <literal type="char">'\0'</literal></expr>)</condition> <block>{
+		<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>move_mbright</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>statusbar_x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+		<comment type="block">/* If this is not a word character, then it's a separator; else
+		 * if we've already seen a separator, then it's a word start. */</comment>
+		<if>if <condition>(<expr><operator>!</operator><call><name>is_word_mbchar</name><argument_list>(<argument><expr><name>answer</name> <operator>+</operator> <name>statusbar_x</name></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><name>seen_space</name> <operator>=</operator> <name>TRUE</name></expr>;</expr_stmt></block></then>
+		<elseif>else <if>if <condition>(<expr><name>seen_space</name></expr>)</condition><then>
+			<block type="pseudo"><break>break;</break></block></then></if></elseif></if>
+	}</block></while>
+
+	<expr_stmt><expr><call><name>update_the_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+}</block></function>
+
+<comment type="block">/* Move to the previous word in the answer. */</comment>
+<function><type><name>void</name></type> <name>do_statusbar_prev_word</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<decl_stmt><decl><type><name>bool</name></type> <name>seen_a_word</name> <init>= <expr><name>FALSE</name></expr></init></decl>, <decl><type ref="prev"/><name>step_forward</name> <init>= <expr><name>FALSE</name></expr></init></decl>;</decl_stmt>
+
+	<comment type="block">/* Move backward until we pass over the start of a word. */</comment>
+	<while>while <condition>(<expr><name>statusbar_x</name> <operator>!=</operator> <literal type="number">0</literal></expr>)</condition> <block>{
+		<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>move_mbleft</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>statusbar_x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+		<if>if <condition>(<expr><call><name>is_word_mbchar</name><argument_list>(<argument><expr><name>answer</name> <operator>+</operator> <name>statusbar_x</name></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><name>seen_a_word</name> <operator>=</operator> <name>TRUE</name></expr>;</expr_stmt></block></then>
+		<elseif>else <if>if <condition>(<expr><name>seen_a_word</name></expr>)</condition><then> <block>{
+			<comment type="block">/* This is space now: we've overshot the start of the word. */</comment>
+			<expr_stmt><expr><name>step_forward</name> <operator>=</operator> <name>TRUE</name></expr>;</expr_stmt>
+			<break>break;</break>
+		}</block></then></if></elseif></if>
+	}</block></while>
+
+	<if>if <condition>(<expr><name>step_forward</name></expr>)</condition><then>
+		<comment type="block">/* Move one character forward again to sit on the start of the word. */</comment>
+		<block type="pseudo"><expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>move_mbright</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>statusbar_x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block></then></if>
+
+	<expr_stmt><expr><call><name>update_the_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+}</block></function>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> <comment type="block">/* !NANO_TINY */</comment>
+
+<comment type="block">/* Get verbatim input and inject it into the answer, without filtering. */</comment>
+<function><type><name>void</name></type> <name>do_statusbar_verbatim_input</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<decl_stmt><decl><type><name>int</name> <modifier>*</modifier></type><name>kbinput</name></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>size_t</name></type> <name>kbinput_len</name></decl>;</decl_stmt>
+
+	<expr_stmt><expr><name>kbinput</name> <operator>=</operator> <call><name>get_verbatim_kbinput</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>kbinput_len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+	<expr_stmt><expr><call><name>do_statusbar_output</name><argument_list>(<argument><expr><name>kbinput</name></expr></argument>, <argument><expr><name>kbinput_len</name></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+}</block></function>
+
+<comment type="block">/* Return the zero-based column position of the cursor in the answer. */</comment>
+<function><type><name>size_t</name></type> <name>statusbar_xplustabs</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<return>return <expr><call><name>strnlenpt</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>statusbar_x</name></expr></argument>)</argument_list></call></expr>;</return>
+}</block></function>
+
+<comment type="block">/* Paste the first line of the cutbuffer into the current answer. */</comment>
+<function><type><name>void</name></type> <name>do_statusbar_uncut_text</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<decl_stmt><decl><type><name>size_t</name></type> <name>pastelen</name> <init>= <expr><call><name>strlen</name><argument_list>(<argument><expr><name><name>cutbuffer</name><operator>-&gt;</operator><name>data</name></name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>fusion</name> <init>= <expr><call><name>charalloc</name><argument_list>(<argument><expr><call><name>strlen</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call> <operator>+</operator> <name>pastelen</name> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+	<comment type="block">/* Concatenate: the current answer before the cursor, the first line
+	 * of the cutbuffer, plus the rest of the current answer. */</comment>
+	<expr_stmt><expr><call><name>strncpy</name><argument_list>(<argument><expr><name>fusion</name></expr></argument>, <argument><expr><name>answer</name></expr></argument>, <argument><expr><name>statusbar_x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>strncpy</name><argument_list>(<argument><expr><name>fusion</name> <operator>+</operator> <name>statusbar_x</name></expr></argument>, <argument><expr><name><name>cutbuffer</name><operator>-&gt;</operator><name>data</name></name></expr></argument>, <argument><expr><name>pastelen</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>strcpy</name><argument_list>(<argument><expr><name>fusion</name> <operator>+</operator> <name>statusbar_x</name> <operator>+</operator> <name>pastelen</name></expr></argument>, <argument><expr><name>answer</name> <operator>+</operator> <name>statusbar_x</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+	<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><name>answer</name> <operator>=</operator> <name>fusion</name></expr>;</expr_stmt>
+	<expr_stmt><expr><name>statusbar_x</name> <operator>+=</operator> <name>pastelen</name></expr>;</expr_stmt>
+}</block></function>
+
+<comment type="block">/* Return the column number of the first character of the answer that is
+ * displayed in the statusbar when the cursor is at the given column,
+ * with the available room for the answer starting at base.  Note that
+ * (0 &lt;= column - get_statusbar_page_start(column) &lt; COLS). */</comment>
+<function><type><name>size_t</name></type> <name>get_statusbar_page_start</name><parameter_list>(<parameter><decl><type><name>size_t</name></type> <name>base</name></decl></parameter>, <parameter><decl><type><name>size_t</name></type> <name>column</name></decl></parameter>)</parameter_list>
+<block>{
+	<if>if <condition>(<expr><name>column</name> <operator>==</operator> <name>base</name> <operator>||</operator> <name>column</name> <operator>&lt;</operator> <name>COLS</name> <operator>-</operator> <literal type="number">1</literal></expr>)</condition><then>
+		<block type="pseudo"><return>return <expr><literal type="number">0</literal></expr>;</return></block></then>
+	<elseif>else <if>if <condition>(<expr><name>COLS</name> <operator>&gt;</operator> <name>base</name> <operator>+</operator> <literal type="number">2</literal></expr>)</condition><then>
+		<block type="pseudo"><return>return <expr><name>column</name> <operator>-</operator> <name>base</name> <operator>-</operator> <literal type="number">1</literal> <operator>-</operator> <operator>(</operator><name>column</name> <operator>-</operator> <name>base</name> <operator>-</operator> <literal type="number">1</literal><operator>)</operator> <operator>%</operator> <operator>(</operator><name>COLS</name> <operator>-</operator> <name>base</name> <operator>-</operator> <literal type="number">2</literal><operator>)</operator></expr>;</return></block></then></if></elseif>
+	<else>else
+		<block type="pseudo"><return>return <expr><name>column</name> <operator>-</operator> <literal type="number">2</literal></expr>;</return></block></else></if>
+}</block></function>
+
+<comment type="block">/* Reinitialize the cursor position in the answer. */</comment>
+<function><type><name>void</name></type> <name>reinit_statusbar_x</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <name>HIGHEST_POSITIVE</name></expr>;</expr_stmt>
+}</block></function>
+
+<comment type="block">/* Redraw the promptbar and place the cursor at the right spot. */</comment>
+<function><type><name>void</name></type> <name>update_the_statusbar</name><parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list>
+<block>{
+	<decl_stmt><decl><type><name>size_t</name></type> <name>base</name> <init>= <expr><call><name>strlenpt</name><argument_list>(<argument><expr><name>prompt</name></expr></argument>)</argument_list></call> <operator>+</operator> <literal type="number">2</literal></expr></init></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>size_t</name></type> <name>the_page</name></decl>, <decl><type ref="prev"/><name>end_page</name></decl>, <decl><type ref="prev"/><name>column</name></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>expanded</name></decl>;</decl_stmt>
+
+	<expr_stmt><expr><name>the_page</name> <operator>=</operator> <call><name>get_statusbar_page_start</name><argument_list>(<argument><expr><name>base</name></expr></argument>, <argument><expr><name>base</name> <operator>+</operator> <call><name>strnlenpt</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>statusbar_x</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><name>end_page</name> <operator>=</operator> <call><name>get_statusbar_page_start</name><argument_list>(<argument><expr><name>base</name></expr></argument>, <argument><expr><name>base</name> <operator>+</operator> <call><name>strlenpt</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call> <operator>-</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+	<comment type="block">/* Color the promptbar over its full width. */</comment>
+	<expr_stmt><expr><call><name>wattron</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><name><name>interface_color_pair</name><index>[<expr><name>TITLE_BAR</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>blank_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+	<expr_stmt><expr><call><name>mvwaddstr</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>prompt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>waddch</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><literal type="char">':'</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>waddch</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><ternary><condition><expr><operator>(</operator><name>the_page</name> <operator>==</operator> <literal type="number">0</literal><operator>)</operator></expr> ?</condition><then> <expr><literal type="char">' '</literal></expr> </then><else>: <expr><literal type="char">'&lt;'</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+	<expr_stmt><expr><name>expanded</name> <operator>=</operator> <call><name>display_string</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>the_page</name></expr></argument>, <argument><expr><name>COLS</name> <operator>-</operator> <name>base</name> <operator>-</operator> <literal type="number">1</literal></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>waddstr</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><name>expanded</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>expanded</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+	<expr_stmt><expr><call><name>waddch</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><ternary><condition><expr><operator>(</operator><name>the_page</name> <operator>&gt;=</operator> <name>end_page</name><operator>)</operator></expr> ?</condition><then> <expr><literal type="char">' '</literal></expr> </then><else>: <expr><literal type="char">'&gt;'</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+	<expr_stmt><expr><call><name>wattroff</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><name><name>interface_color_pair</name><index>[<expr><name>TITLE_BAR</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+	<comment type="block">/* Work around a cursor-misplacement bug in VTEs. */</comment>
+	<expr_stmt><expr><call><name>wmove</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>wrefresh</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+	<comment type="block">/* Place the cursor at statusbar_x in the answer. */</comment>
+	<expr_stmt><expr><name>column</name> <operator>=</operator> <name>base</name> <operator>+</operator> <call><name>statusbar_xplustabs</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>wmove</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>column</name> <operator>-</operator> <call><name>get_statusbar_page_start</name><argument_list>(<argument><expr><name>base</name></expr></argument>, <argument><expr><name>column</name></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>wnoutrefresh</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+}</block></function>
+
+<comment type="block">/* Get a string of input at the statusbar prompt. */</comment>
+<function><type><name>functionptrtype</name></type> <name>acquire_an_answer</name><parameter_list>(<parameter><decl><type><name>int</name> <modifier>*</modifier></type><name>actual</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>allow_tabs</name></decl></parameter>,
+		<parameter><decl><type><name>bool</name></type> <name>allow_files</name></decl></parameter>, <parameter><decl><type><name>bool</name> <modifier>*</modifier></type><name>listed</name></decl></parameter>, <parameter><decl><type><name>filestruct</name> <modifier>*</modifier><modifier>*</modifier></type><name>history_list</name></decl></parameter>,
+		<parameter><function_decl><type><name>void</name></type> (<modifier>*</modifier><name>refresh_func</name>)<parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list></function_decl></parameter>)</parameter_list>
+<block>{
+	<decl_stmt><decl><type><name>int</name></type> <name>kbinput</name> <init>= <expr><name>ERR</name></expr></init></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>bool</name></type> <name>ran_func</name></decl>, <decl><type ref="prev"/><name>finished</name></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>functionptrtype</name></type> <name>func</name></decl>;</decl_stmt>
+<cpp:ifdef>#<cpp:directive>ifdef</cpp:directive> <name>ENABLE_TABCOMP</name></cpp:ifdef>
+	<decl_stmt><decl><type><name>bool</name></type> <name>tabbed</name> <init>= <expr><name>FALSE</name></expr></init></decl>;</decl_stmt>
+		<comment type="block">/* Whether we've pressed Tab. */</comment>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<cpp:ifdef>#<cpp:directive>ifdef</cpp:directive> <name>ENABLE_HISTORIES</name></cpp:ifdef>
+	<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>history</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+		<comment type="block">/* The current history string. */</comment>
+	<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>magichistory</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+		<comment type="block">/* The temporary string typed at the bottom of the history, if
+		 * any. */</comment>
+<cpp:ifdef>#<cpp:directive>ifdef</cpp:directive> <name>ENABLE_TABCOMP</name></cpp:ifdef>
+	<decl_stmt><decl><type><name>int</name></type> <name>last_kbinput</name> <init>= <expr><name>ERR</name></expr></init></decl>;</decl_stmt>
+		<comment type="block">/* The key we pressed before the current key. */</comment>
+	<decl_stmt><decl><type><name>size_t</name></type> <name>complete_len</name> <init>= <expr><literal type="number">0</literal></expr></init></decl>;</decl_stmt>
+		<comment type="block">/* The length of the original string that we're trying to
+		 * tab complete, if any. */</comment>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> <comment type="block">/* ENABLE_HISTORIES */</comment>
+
+	<if>if <condition>(<expr><name>statusbar_x</name> <operator>&gt;</operator> <call><name>strlen</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+		<block type="pseudo"><expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>strlen</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block></then></if>
+
+	<expr_stmt><expr><call><name>update_the_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+	<while>while <condition>(<expr><name>TRUE</name></expr>)</condition> <block>{
+		<expr_stmt><expr><name>kbinput</name> <operator>=</operator> <call><name>do_statusbar_input</name><argument_list>(<argument><expr><operator>&amp;</operator><name>ran_func</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>finished</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:ifndef>#<cpp:directive>ifndef</cpp:directive> <name>NANO_TINY</name></cpp:ifndef>
+		<comment type="block">/* If the window size changed, go reformat the prompt string. */</comment>
+		<if>if <condition>(<expr><name>kbinput</name> <operator>==</operator> <name>KEY_WINCH</name></expr>)</condition><then> <block>{
+			<expr_stmt><expr><call><name>refresh_func</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+			<expr_stmt><expr><operator>*</operator><name>actual</name> <operator>=</operator> <name>KEY_WINCH</name></expr>;</expr_stmt>
+<cpp:ifdef>#<cpp:directive>ifdef</cpp:directive> <name>ENABLE_HISTORIES</name></cpp:ifdef>
+			<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>magichistory</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+			<return>return <expr><name>NULL</name></expr>;</return>
+		}</block></then></if>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> <comment type="block">/* !NANO_TINY */</comment>
+
+		<expr_stmt><expr><name>func</name> <operator>=</operator> <call><name>func_from_key</name><argument_list>(<argument><expr><operator>&amp;</operator><name>kbinput</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+		<if>if <condition>(<expr><name>func</name> <operator>==</operator> <name>do_cancel</name> <operator>||</operator> <name>func</name> <operator>==</operator> <name>do_enter</name></expr>)</condition><then>
+			<block type="pseudo"><break>break;</break></block></then></if>
+
+<cpp:ifdef>#<cpp:directive>ifdef</cpp:directive> <name>ENABLE_TABCOMP</name></cpp:ifdef>
+		<if>if <condition>(<expr><name>func</name> <operator>!=</operator> <name>do_tab</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><name>tabbed</name> <operator>=</operator> <name>FALSE</name></expr>;</expr_stmt></block></then></if>
+
+		<if>if <condition>(<expr><name>func</name> <operator>==</operator> <name>do_tab</name></expr>)</condition><then> <block>{
+<cpp:ifdef>#<cpp:directive>ifdef</cpp:directive> <name>ENABLE_HISTORIES</name></cpp:ifdef>
+			<if>if <condition>(<expr><name>history_list</name> <operator>!=</operator> <name>NULL</name></expr>)</condition><then> <block>{
+				<if>if <condition>(<expr><name>last_kbinput</name> <operator>!=</operator> <call><name>the_code_for</name><argument_list>(<argument><expr><name>do_tab</name></expr></argument>, <argument><expr><name>TAB_CODE</name></expr></argument>)</argument_list></call></expr>)</condition><then>
+					<block type="pseudo"><expr_stmt><expr><name>complete_len</name> <operator>=</operator> <call><name>strlen</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block></then></if>
+
+				<if>if <condition>(<expr><name>complete_len</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition><then> <block>{
+					<expr_stmt><expr><name>answer</name> <operator>=</operator> <call><name>get_history_completion</name><argument_list>(<argument><expr><name>history_list</name></expr></argument>,
+										<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>complete_len</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+					<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>strlen</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				}</block></then></if>
+			}</block></then> <elseif>else
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+			<if>if <condition>(<expr><name>allow_tabs</name></expr>)</condition><then>
+				<block type="pseudo"><expr_stmt><expr><name>answer</name> <operator>=</operator> <call><name>input_tab</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>allow_files</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>statusbar_x</name></expr></argument>,
+										<argument><expr><operator>&amp;</operator><name>tabbed</name></expr></argument>, <argument><expr><name>refresh_func</name></expr></argument>, <argument><expr><name>listed</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block></then></if></elseif></if>
+		}</block></then> <elseif>else
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> <comment type="block">/* ENABLE_TABCOMP */</comment>
+<cpp:ifdef>#<cpp:directive>ifdef</cpp:directive> <name>ENABLE_HISTORIES</name></cpp:ifdef>
+		<if>if <condition>(<expr><name>func</name> <operator>==</operator> <name>get_history_older_void</name></expr>)</condition><then> <block>{
+			<if>if <condition>(<expr><name>history_list</name> <operator>!=</operator> <name>NULL</name></expr>)</condition><then> <block>{
+				<comment type="block">/* If we're scrolling up at the bottom of the history list
+				 * and answer isn't blank, save answer in magichistory. */</comment>
+				<if>if <condition>(<expr><name><operator>(</operator><operator>*</operator><name>history_list</name><operator>)</operator><operator>-&gt;</operator><name>next</name></name> <operator>==</operator> <name>NULL</name> <operator>&amp;&amp;</operator> <operator>*</operator><name>answer</name> <operator>!=</operator> <literal type="char">'\0'</literal></expr>)</condition><then>
+					<block type="pseudo"><expr_stmt><expr><name>magichistory</name> <operator>=</operator> <call><name>mallocstrcpy</name><argument_list>(<argument><expr><name>magichistory</name></expr></argument>, <argument><expr><name>answer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt></block></then></if>
+
+				<comment type="block">/* Get the older search from the history list and save it in
+				 * answer.  If there is no older search, don't do anything. */</comment>
+				<if>if <condition>(<expr><operator>(</operator><name>history</name> <operator>=</operator> <call><name>get_history_older</name><argument_list>(<argument><expr><name>history_list</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>!=</operator> <name>NULL</name></expr>)</condition><then> <block>{
+					<expr_stmt><expr><name>answer</name> <operator>=</operator> <call><name>mallocstrcpy</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>history</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+					<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>strlen</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				}</block></then></if>
+
+				<comment type="block">/* This key has a shortcut-list entry when it's used to
+				 * move to an older search, which means that finished has
+				 * been set to TRUE.  Set it back to FALSE here, so that
+				 * we aren't kicked out of the statusbar prompt. */</comment>
+				<expr_stmt><expr><name>finished</name> <operator>=</operator> <name>FALSE</name></expr>;</expr_stmt>
+			}</block></then></if>
+		}</block></then></if></elseif> <elseif>else <if>if <condition>(<expr><name>func</name> <operator>==</operator> <name>get_history_newer_void</name></expr>)</condition><then> <block>{
+			<if>if <condition>(<expr><name>history_list</name> <operator>!=</operator> <name>NULL</name></expr>)</condition><then> <block>{
+				<comment type="block">/* Get the newer search from the history list and save it in
+				 * answer.  If there is no newer search, don't do anything. */</comment>
+				<if>if <condition>(<expr><operator>(</operator><name>history</name> <operator>=</operator> <call><name>get_history_newer</name><argument_list>(<argument><expr><name>history_list</name></expr></argument>)</argument_list></call><operator>)</operator> <operator>!=</operator> <name>NULL</name></expr>)</condition><then> <block>{
+					<expr_stmt><expr><name>answer</name> <operator>=</operator> <call><name>mallocstrcpy</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>history</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+					<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>strlen</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				}</block></then></if>
+
+				<comment type="block">/* If, after scrolling down, we're at the bottom of the
+				 * history list, answer is blank, and magichistory is set,
+				 * save magichistory in answer. */</comment>
+				<if>if <condition>(<expr><name><operator>(</operator><operator>*</operator><name>history_list</name><operator>)</operator><operator>-&gt;</operator><name>next</name></name> <operator>==</operator> <name>NULL</name> <operator>&amp;&amp;</operator>
+						<operator>*</operator><name>answer</name> <operator>==</operator> <literal type="char">'\0'</literal> <operator>&amp;&amp;</operator> <name>magichistory</name> <operator>!=</operator> <name>NULL</name></expr>)</condition><then> <block>{
+					<expr_stmt><expr><name>answer</name> <operator>=</operator> <call><name>mallocstrcpy</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>magichistory</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+					<expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <call><name>strlen</name><argument_list>(<argument><expr><name>answer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				}</block></then></if>
+
+				<comment type="block">/* This key has a shortcut-list entry when it's used to
+				 * move to a newer search, which means that finished has
+				 * been set to TRUE.  Set it back to FALSE here, so that
+				 * we aren't kicked out of the statusbar prompt. */</comment>
+				<expr_stmt><expr><name>finished</name> <operator>=</operator> <name>FALSE</name></expr>;</expr_stmt>
+			}</block></then></if>
+		}</block></then></if></elseif> <elseif>else
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> <comment type="block">/* ENABLE_HISTORIES */</comment>
+		<if>if <condition>(<expr><name>func</name> <operator>==</operator> <name>do_help_void</name></expr>)</condition><then> <block>{
+			<comment type="block">/* This key has a shortcut-list entry when it's used to go to
+			 * the help browser or display a message indicating that help
+			 * is disabled, which means that finished has been set to TRUE.
+			 * Set it back to FALSE here, so that we aren't kicked out of
+			 * the statusbar prompt. */</comment>
+			<expr_stmt><expr><name>finished</name> <operator>=</operator> <name>FALSE</name></expr>;</expr_stmt>
+		}</block></then></if></elseif></if>
+
+		<comment type="block">/* If we have a shortcut with an associated function, break out if
+		 * we're finished after running or trying to run the function. */</comment>
+		<if>if <condition>(<expr><name>finished</name></expr>)</condition><then>
+			<block type="pseudo"><break>break;</break></block></then></if>
+
+		<expr_stmt><expr><call><name>update_the_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<cpp:if>#<cpp:directive>if</cpp:directive> <expr><call><name>defined</name><argument_list>(<argument><expr><name>ENABLE_HISTORIES</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator> <call><name>defined</name><argument_list>(<argument><expr><name>ENABLE_TABCOMP</name></expr></argument>)</argument_list></call></expr></cpp:if>
+		<expr_stmt><expr><name>last_kbinput</name> <operator>=</operator> <name>kbinput</name></expr>;</expr_stmt>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+	}</block></while>
+
+
+	
+	
+
+
+	<expr_stmt><expr><operator>*</operator><name>actual</name> <operator>=</operator> <name>kbinput</name></expr>;</expr_stmt>
+
+	<return>return <expr><name>func</name></expr>;</return>
+}</block></function>
+
+<comment type="block">/* Ask a question on the statusbar.  The prompt will be stored in the
+ * static prompt, which should be NULL initially, and the answer will be
+ * stored in the answer global.  Returns -1 on aborted enter, -2 on a
+ * blank string, and 0 otherwise, the valid shortcut key caught.
+ * curranswer is any editable text that we want to put up by default,
+ * and refresh_func is the function we want to call to refresh the edit
+ * window.
+ *
+ * The allow_tabs parameter indicates whether we should allow tabs to be
+ * interpreted.  The allow_files parameter indicates whether we should
+ * allow all files (as opposed to just directories) to be tab completed. */</comment>
+<function><type><name>int</name></type> <name>do_prompt</name><parameter_list>(<parameter><decl><type><name>bool</name></type> <name>allow_tabs</name></decl></parameter>, <parameter><decl><type><name>bool</name></type> <name>allow_files</name></decl></parameter>,
+		<parameter><decl><type><name>int</name></type> <name>menu</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>curranswer</name></decl></parameter>, <parameter><decl><type><name>filestruct</name> <modifier>*</modifier><modifier>*</modifier></type><name>history_list</name></decl></parameter>,
+		<parameter><function_decl><type><name>void</name></type> (<modifier>*</modifier><name>refresh_func</name>)<parameter_list>(<parameter><decl><type><name>void</name></type></decl></parameter>)</parameter_list></function_decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>msg</name></decl></parameter>, <parameter><decl><type><modifier>...</modifier></type></decl></parameter>)</parameter_list>
+<block>{
+	<decl_stmt><decl><type><name>va_list</name></type> <name>ap</name></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>int</name></type> <name>retval</name></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>functionptrtype</name></type> <name>func</name> <init>= <expr><name>NULL</name></expr></init></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>bool</name></type> <name>listed</name> <init>= <expr><name>FALSE</name></expr></init></decl>;</decl_stmt>
+	<comment type="block">/* Save a possible current statusbar x position and prompt. */</comment>
+	<decl_stmt><decl><type><name>size_t</name></type> <name>was_statusbar_x</name> <init>= <expr><name>statusbar_x</name></expr></init></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>saved_prompt</name> <init>= <expr><name>prompt</name></expr></init></decl>;</decl_stmt>
+
+	<expr_stmt><expr><call><name>bottombars</name><argument_list>(<argument><expr><name>menu</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+	<expr_stmt><expr><name>answer</name> <operator>=</operator> <call><name>mallocstrcpy</name><argument_list>(<argument><expr><name>answer</name></expr></argument>, <argument><expr><name>curranswer</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+<cpp:ifndef>#<cpp:directive>ifndef</cpp:directive> <name>NANO_TINY</name></cpp:ifndef>
+  <label><name>redo_theprompt</name>:</label>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+	<expr_stmt><expr><name>prompt</name> <operator>=</operator> <call><name>charalloc</name><argument_list>(<argument><expr><operator>(</operator><name>COLS</name> <operator>*</operator> <name>MAXCHARLEN</name><operator>)</operator> <operator>+</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>va_start</name><argument_list>(<argument><expr><name>ap</name></expr></argument>, <argument><expr><name>msg</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>vsnprintf</name><argument_list>(<argument><expr><name>prompt</name></expr></argument>, <argument><expr><name>COLS</name> <operator>*</operator> <name>MAXCHARLEN</name></expr></argument>, <argument><expr><name>msg</name></expr></argument>, <argument><expr><name>ap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>va_end</name><argument_list>(<argument><expr><name>ap</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<comment type="block">/* Reserve five columns for colon plus angles plus answer, ":&lt;aa&gt;". */</comment>
+	<expr_stmt><expr><name><name>prompt</name><index>[<expr><call><name>actual_x</name><argument_list>(<argument><expr><name>prompt</name></expr></argument>, <argument><expr><ternary><condition><expr><operator>(</operator><name>COLS</name> <operator>&lt;</operator> <literal type="number">5</literal><operator>)</operator></expr> ?</condition><then> <expr><literal type="number">0</literal></expr> </then><else>: <expr><name>COLS</name> <operator>-</operator> <literal type="number">5</literal></expr></else></ternary></expr></argument>)</argument_list></call></expr>]</index></name> <operator>=</operator> <literal type="char">'\0'</literal></expr>;</expr_stmt>
+
+	<expr_stmt><expr><name>func</name> <operator>=</operator> <call><name>acquire_an_answer</name><argument_list>(<argument><expr><operator>&amp;</operator><name>retval</name></expr></argument>, <argument><expr><name>allow_tabs</name></expr></argument>, <argument><expr><name>allow_files</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>listed</name></expr></argument>,
+								<argument><expr><name>history_list</name></expr></argument>, <argument><expr><name>refresh_func</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>prompt</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+	<expr_stmt><expr><name>prompt</name> <operator>=</operator> <name>saved_prompt</name></expr>;</expr_stmt>
+
+<cpp:ifndef>#<cpp:directive>ifndef</cpp:directive> <name>NANO_TINY</name></cpp:ifndef>
+	<if>if <condition>(<expr><name>retval</name> <operator>==</operator> <name>KEY_WINCH</name></expr>)</condition><then>
+		<block type="pseudo"><goto>goto <name>redo_theprompt</name>;</goto></block></then></if>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+	<comment type="block">/* If we're done with this prompt, restore the x position to what
+	 * it was at a possible previous prompt. */</comment>
+	<if>if <condition>(<expr><name>func</name> <operator>==</operator> <name>do_cancel</name> <operator>||</operator> <name>func</name> <operator>==</operator> <name>do_enter</name></expr>)</condition><then>
+		<block type="pseudo"><expr_stmt><expr><name>statusbar_x</name> <operator>=</operator> <name>was_statusbar_x</name></expr>;</expr_stmt></block></then></if>
+
+	<comment type="block">/* If we left the prompt via Cancel or Enter, set the return value
+	 * properly. */</comment>
+	<if>if <condition>(<expr><name>func</name> <operator>==</operator> <name>do_cancel</name></expr>)</condition><then>
+		<block type="pseudo"><expr_stmt><expr><name>retval</name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt></block></then>
+	<elseif>else <if>if <condition>(<expr><name>func</name> <operator>==</operator> <name>do_enter</name></expr>)</condition><then>
+		<block type="pseudo"><expr_stmt><expr><name>retval</name> <operator>=</operator> <ternary><condition><expr><operator>(</operator><operator>*</operator><name>answer</name> <operator>==</operator> <literal type="char">'\0'</literal><operator>)</operator></expr> ?</condition><then> <expr><operator>-</operator><literal type="number">2</literal></expr> </then><else>: <expr><literal type="number">0</literal></expr></else></ternary></expr>;</expr_stmt></block></then></if></elseif></if>
+
+	<expr_stmt><expr><call><name>wipe_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+<cpp:ifdef>#<cpp:directive>ifdef</cpp:directive> <name>ENABLE_TABCOMP</name></cpp:ifdef>
+	<comment type="block">/* If we've done tab completion, there might still be a list of
+	 * filename matches on the edit window.  Clear them off. */</comment>
+	<if>if <condition>(<expr><name>listed</name></expr>)</condition><then>
+		<block type="pseudo"><expr_stmt><expr><call><name>refresh_func</name><argument_list>()</argument_list></call></expr>;</expr_stmt></block></then></if>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif>
+
+	<return>return <expr><name>retval</name></expr>;</return>
+}</block></function>
+
+<comment type="block">/* Ask a simple Yes/No (and optionally All) question, specified in msg,
+ * on the statusbar.  Return 1 for Yes, 0 for No, 2 for All (if all is
+ * TRUE when passed in), and -1 for Cancel. */</comment>
+<function><type><name>int</name></type> <name>do_yesno_prompt</name><parameter_list>(<parameter><decl><type><name>bool</name></type> <name>all</name></decl></parameter>, <parameter><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>msg</name></decl></parameter>)</parameter_list>
+<block>{
+	<decl_stmt><decl><type><name>int</name></type> <name>response</name> <init>= <expr><operator>-</operator><literal type="number">2</literal></expr></init></decl>, <decl><type ref="prev"/><name>width</name> <init>= <expr><literal type="number">16</literal></expr></init></decl>;</decl_stmt>
+	<decl_stmt><decl><type><name>char</name> <modifier>*</modifier></type><name>message</name> <init>= <expr><call><name>display_string</name><argument_list>(<argument><expr><name>msg</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>COLS</name></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+	<comment type="block">/* TRANSLATORS: For the next three strings, if possible, specify
+	 * the single-byte letters for both your language and English.
+	 * For example, in French: "OoYy", for both "Oui" and "Yes". */</comment>
+	<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>yesstr</name> <init>= <expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Yy"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+	<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>nostr</name> <init>= <expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Nn"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+	<decl_stmt><decl><type><specifier>const</specifier> <name>char</name> <modifier>*</modifier></type><name>allstr</name> <init>= <expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Aa"</literal></expr></argument>)</argument_list></call></expr></init></decl>;</decl_stmt>
+
+	<comment type="block">/* The above three variables consist of all the single-byte characters
+	 * that are accepted for the corresponding answer.  Of each variable,
+	 * the first character is displayed in the help lines. */</comment>
+
+	<while>while <condition>(<expr><name>response</name> <operator>==</operator> <operator>-</operator><literal type="number">2</literal></expr>)</condition> <block>{
+		<decl_stmt><decl><type><name>int</name></type> <name>kbinput</name></decl>;</decl_stmt>
+
+		<if>if <condition>(<expr><operator>!</operator><call><name>ISSET</name><argument_list>(<argument><expr><name>NO_HELP</name></expr></argument>)</argument_list></call></expr>)</condition><then> <block>{
+			<decl_stmt><decl><type><name>char</name></type> <name><name>shortstr</name><index>[<expr><name>MAXCHARLEN</name> <operator>+</operator> <literal type="number">2</literal></expr>]</index></name></decl>;</decl_stmt>
+				<comment type="block">/* Temporary string for (translated) " Y", " N" and " A". */</comment>
+
+			<if>if <condition>(<expr><name>COLS</name> <operator>&lt;</operator> <literal type="number">32</literal></expr>)</condition><then>
+				<block type="pseudo"><expr_stmt><expr><name>width</name> <operator>=</operator> <name>COLS</name> <operator>/</operator> <literal type="number">2</literal></expr>;</expr_stmt></block></then></if>
+
+			<comment type="block">/* Clear the shortcut list from the bottom of the screen. */</comment>
+			<expr_stmt><expr><call><name>blank_bottombars</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+
+			<comment type="block">/* Now show the ones for "Yes", "No", "Cancel" and maybe "All". */</comment>
+			<expr_stmt><expr><call><name>sprintf</name><argument_list>(<argument><expr><name>shortstr</name></expr></argument>, <argument><expr><literal type="string">" %c"</literal></expr></argument>, <argument><expr><name><name>yesstr</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			<expr_stmt><expr><call><name>wmove</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			<expr_stmt><expr><call><name>post_one_key</name><argument_list>(<argument><expr><name>shortstr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Yes"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>width</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+			<if>if <condition>(<expr><name>all</name></expr>)</condition><then> <block>{
+				<expr_stmt><expr><name><name>shortstr</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>allstr</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+				<expr_stmt><expr><call><name>wmove</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><literal type="number">1</literal></expr></argument>, <argument><expr><name>width</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+				<expr_stmt><expr><call><name>post_one_key</name><argument_list>(<argument><expr><name>shortstr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"All"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>width</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			}</block></then></if>
+
+			<expr_stmt><expr><name><name>shortstr</name><index>[<expr><literal type="number">1</literal></expr>]</index></name> <operator>=</operator> <name><name>nostr</name><index>[<expr><literal type="number">0</literal></expr>]</index></name></expr>;</expr_stmt>
+			<expr_stmt><expr><call><name>wmove</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			<expr_stmt><expr><call><name>post_one_key</name><argument_list>(<argument><expr><name>shortstr</name></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"No"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>width</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+			<expr_stmt><expr><call><name>wmove</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><literal type="number">2</literal></expr></argument>, <argument><expr><name>width</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+			<expr_stmt><expr><call><name>post_one_key</name><argument_list>(<argument><expr><literal type="string">"^C"</literal></expr></argument>, <argument><expr><call><name>_</name><argument_list>(<argument><expr><literal type="string">"Cancel"</literal></expr></argument>)</argument_list></call></expr></argument>, <argument><expr><name>width</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		}</block></then></if>
+
+		<comment type="block">/* Color the statusbar over its full width and display the question. */</comment>
+		<expr_stmt><expr><call><name>wattron</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><name><name>interface_color_pair</name><index>[<expr><name>TITLE_BAR</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		<expr_stmt><expr><call><name>blank_statusbar</name><argument_list>()</argument_list></call></expr>;</expr_stmt>
+		<expr_stmt><expr><call><name>mvwaddnstr</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><literal type="number">0</literal></expr></argument>, <argument><expr><name>message</name></expr></argument>, <argument><expr><call><name>actual_x</name><argument_list>(<argument><expr><name>message</name></expr></argument>, <argument><expr><name>COLS</name> <operator>-</operator> <literal type="number">1</literal></expr></argument>)</argument_list></call></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		<expr_stmt><expr><call><name>wattroff</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><name><name>interface_color_pair</name><index>[<expr><name>TITLE_BAR</name></expr>]</index></name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+		<expr_stmt><expr><call><name>wnoutrefresh</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+		<expr_stmt><expr><name>currmenu</name> <operator>=</operator> <name>MYESNO</name></expr>;</expr_stmt>
+
+		<comment type="block">/* When not replacing, show the cursor while waiting for a key. */</comment>
+		<expr_stmt><expr><name>kbinput</name> <operator>=</operator> <call><name>get_kbinput</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><operator>!</operator><name>all</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+		<comment type="block">/* See if the pressed key is in the Yes, No, or All strings. */</comment>
+		<if>if <condition>(<expr><call><name>strchr</name><argument_list>(<argument><expr><name>yesstr</name></expr></argument>, <argument><expr><name>kbinput</name></expr></argument>)</argument_list></call> <operator>!=</operator> <name>NULL</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><name>response</name> <operator>=</operator> <literal type="number">1</literal></expr>;</expr_stmt></block></then>
+		<elseif>else <if>if <condition>(<expr><call><name>strchr</name><argument_list>(<argument><expr><name>nostr</name></expr></argument>, <argument><expr><name>kbinput</name></expr></argument>)</argument_list></call> <operator>!=</operator> <name>NULL</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><name>response</name> <operator>=</operator> <literal type="number">0</literal></expr>;</expr_stmt></block></then></if></elseif>
+		<elseif>else <if>if <condition>(<expr><name>all</name> <operator>&amp;&amp;</operator> <call><name>strchr</name><argument_list>(<argument><expr><name>allstr</name></expr></argument>, <argument><expr><name>kbinput</name></expr></argument>)</argument_list></call> <operator>!=</operator> <name>NULL</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><name>response</name> <operator>=</operator> <literal type="number">2</literal></expr>;</expr_stmt></block></then></if></elseif>
+		<elseif>else <if>if <condition>(<expr><call><name>func_from_key</name><argument_list>(<argument><expr><operator>&amp;</operator><name>kbinput</name></expr></argument>)</argument_list></call> <operator>==</operator> <name>do_cancel</name></expr>)</condition><then>
+			<block type="pseudo"><expr_stmt><expr><name>response</name> <operator>=</operator> <operator>-</operator><literal type="number">1</literal></expr>;</expr_stmt></block></then></if></elseif>
+<cpp:ifdef>#<cpp:directive>ifdef</cpp:directive> <name>ENABLE_MOUSE</name></cpp:ifdef>
+		<elseif>else <if>if <condition>(<expr><name>kbinput</name> <operator>==</operator> <name>KEY_MOUSE</name></expr>)</condition><then> <block>{
+			<decl_stmt><decl><type><name>int</name></type> <name>mouse_x</name></decl>, <decl><type ref="prev"/><name>mouse_y</name></decl>;</decl_stmt>
+			<comment type="block">/* We can click on the Yes/No/All shortcuts to select an answer. */</comment>
+			<if>if <condition>(<expr><call><name>get_mouseinput</name><argument_list>(<argument><expr><operator>&amp;</operator><name>mouse_x</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>mouse_y</name></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>)</argument_list></call> <operator>==</operator> <literal type="number">0</literal> <operator>&amp;&amp;</operator>
+						<call><name>wmouse_trafo</name><argument_list>(<argument><expr><name>bottomwin</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>mouse_y</name></expr></argument>, <argument><expr><operator>&amp;</operator><name>mouse_x</name></expr></argument>, <argument><expr><name>FALSE</name></expr></argument>)</argument_list></call> <operator>&amp;&amp;</operator>
+						<name>mouse_x</name> <operator>&lt;</operator> <operator>(</operator><name>width</name> <operator>*</operator> <literal type="number">2</literal><operator>)</operator> <operator>&amp;&amp;</operator> <name>mouse_y</name> <operator>&gt;</operator> <literal type="number">0</literal></expr>)</condition><then> <block>{
+				<decl_stmt><decl><type><name>int</name></type> <name>x</name> <init>= <expr><name>mouse_x</name> <operator>/</operator> <name>width</name></expr></init></decl>;</decl_stmt>
+				<decl_stmt><decl><type><name>int</name></type> <name>y</name> <init>= <expr><name>mouse_y</name> <operator>-</operator> <literal type="number">1</literal></expr></init></decl>;</decl_stmt>
+
+				<comment type="block">/* x == 0 means Yes or No, y == 0 means Yes or All. */</comment>
+				<expr_stmt><expr><name>response</name> <operator>=</operator> <operator>-</operator><literal type="number">2</literal> <operator>*</operator> <name>x</name> <operator>*</operator> <name>y</name> <operator>+</operator> <name>x</name> <operator>-</operator> <name>y</name> <operator>+</operator> <literal type="number">1</literal></expr>;</expr_stmt>
+
+				<if>if <condition>(<expr><name>response</name> <operator>==</operator> <literal type="number">2</literal> <operator>&amp;&amp;</operator> <operator>!</operator><name>all</name></expr>)</condition><then>
+					<block type="pseudo"><expr_stmt><expr><name>response</name> <operator>=</operator> <operator>-</operator><literal type="number">2</literal></expr>;</expr_stmt></block></then></if>
+			}</block></then></if>
+		}</block></then></if></elseif></if>
+<cpp:endif>#<cpp:directive>endif</cpp:directive></cpp:endif> <comment type="block">/* ENABLE_MOUSE */</comment>
+	}</block></while>
+
+	<expr_stmt><expr><call><name>free</name><argument_list>(<argument><expr><name>message</name></expr></argument>)</argument_list></call></expr>;</expr_stmt>
+
+	<return>return <expr><name>response</name></expr>;</return>
+}</block></function>
+</unit>
